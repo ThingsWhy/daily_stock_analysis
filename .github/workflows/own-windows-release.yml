@@ -1,0 +1,108 @@
+name: Own Windows Build and Release
+
+# Keep the upstream main branch untouched. Builds follow our customization branch.
+# Tag an own commit as own-v3.33.0-own.1 (or any valid own-v<semver>) to publish.
+on:
+  push:
+    branches:
+      - own
+    tags:
+      - 'own-v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: own-windows-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    # Never build other branches or accidentally publish an upstream v* release.
+    if: github.ref == 'refs/heads/own' || startsWith(github.ref, 'refs/tags/own-v')
+    runs-on: windows-latest
+    permissions:
+      contents: ${{ startsWith(github.ref, 'refs/tags/own-v') && 'write' || 'read' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            apps/dsa-web/package-lock.json
+            apps/dsa-desktop/package-lock.json
+
+      - name: Set custom build version and update provider
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:GITHUB_REF.StartsWith('refs/tags/own-v')) {
+            $version = $env:GITHUB_REF.Substring('refs/tags/own-v'.Length)
+          } else {
+            $version = "3.33.0-own.$env:GITHUB_RUN_NUMBER"
+          }
+          if ($version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') {
+            throw "Invalid semver: $version"
+          }
+          Push-Location apps/dsa-desktop
+          try {
+            npm version $version --no-git-tag-version --allow-same-version
+            if ($LASTEXITCODE -ne 0) { throw 'npm version failed' }
+            # Ensure our custom build does not use the upstream author's update feed.
+            $package = Get-Content package.json -Raw | ConvertFrom-Json
+            $package.build.win.publish = @(@{ provider = 'github'; owner = 'ThingsWhy'; repo = 'daily_stock_analysis' })
+            $package | ConvertTo-Json -Depth 100 | Set-Content package.json -Encoding utf8
+          } finally {
+            Pop-Location
+          }
+          "DSA_WEB_VERSION=$version" >> $env:GITHUB_ENV
+          "DSA_WEB_REVISION=$($env:GITHUB_SHA.Substring(0,12))" >> $env:GITHUB_ENV
+          "OWN_VERSION=$version" >> $env:GITHUB_ENV
+
+      - name: Build Windows desktop installer
+        shell: pwsh
+        env:
+          DSA_SKIP_DEVMODE_CHECK: 'true'
+        run: |
+          powershell -ExecutionPolicy Bypass -File scripts/build-all.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Desktop build failed' }
+
+      - name: Collect Windows assets
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dir = 'apps/dsa-desktop/dist'
+          $installer = Join-Path $dir "daily-stock-analysis-windows-installer-v$env:OWN_VERSION.exe"
+          if (-not (Test-Path $installer)) { throw "Installer missing: $installer" }
+          if (-not (Test-Path (Join-Path $dir 'win-unpacked'))) { throw 'win-unpacked missing' }
+          New-Item -ItemType Directory -Force -Path 'dist/own-release' | Out-Null
+          Copy-Item $installer 'dist/own-release/'
+          Compress-Archive -Path (Join-Path $dir 'win-unpacked') -DestinationPath "dist/own-release/daily-stock-analysis-windows-portable-v$env:OWN_VERSION.zip" -CompressionLevel Optimal
+          Get-ChildItem 'dist/own-release' -File | Select-Object Name, Length | Format-Table
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: own-windows-${{ github.run_number }}
+          path: dist/own-release/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish own GitHub prerelease
+        if: startsWith(github.ref, 'refs/tags/own-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          gh release create "$env:GITHUB_REF_NAME" dist/own-release/* --repo "$env:GITHUB_REPOSITORY" --target "$env:GITHUB_SHA" --title "$env:GITHUB_REF_NAME" --notes "Custom Windows build from own branch at $env:GITHUB_SHA. Not an official ZhuLinsen release." --prerelease
+          if ($LASTEXITCODE -ne 0) { throw 'GitHub Release failed' }
