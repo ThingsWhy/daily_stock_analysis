@@ -379,15 +379,15 @@ def trigger_analysis(
             if isinstance(skill_id, str) and skill_id.strip()
         ))
         try:
-            max_skill_agents = max(1, min(8, int(getattr(config, "agent_skill_max_agents", 4) or 4)))
+            max_skill_agents = max(1, min(64, int(getattr(config, "agent_skill_max_agents", 64) or 64)))
         except (TypeError, ValueError):
-            max_skill_agents = 4
+            max_skill_agents = 64
         if len(requested_skill_ids) > max_skill_agents:
             raise api_error(
                 400,
                 "validation_error",
                 f"本次选择了 {len(requested_skill_ids)} 项策略，超过当前上限 {max_skill_agents}。"
-                "请减少选择，或将 AGENT_SKILL_MAX_AGENTS 配置为更大的值（最大 8）。",
+                "请减少选择，或将 AGENT_SKILL_MAX_AGENTS 配置为更大的值（最大 64）。",
             )
 
     # 校验请求参数

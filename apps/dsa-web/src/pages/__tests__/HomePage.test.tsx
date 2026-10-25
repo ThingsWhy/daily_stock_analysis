@@ -10,7 +10,7 @@ import { useTaskStream } from '../../hooks/useTaskStream';
 import { useStockPoolStore } from '../../stores';
 import type { RunFlowSnapshot } from '../../types/runFlow';
 import { getReportText, normalizeReportLanguage } from '../../utils/reportLanguage';
-import { HOME_SELECTED_SKILLS_STORAGE_KEY } from '../../utils/strategyPreferences';
+import { FULL_DIMENSION_MODE, writeFullDimensionSkillIds, writeStrategyMode, readStrategyMode } from '../../utils/strategyPreferences';
 import { UI_LANGUAGE_STORAGE_KEY } from '../../utils/uiLanguage';
 import HomePage from '../HomePage';
 
@@ -3322,7 +3322,7 @@ describe('HomePage', () => {
     );
 
     fireEvent.click(await screen.findByRole('button', { name: '默认策略' }));
-    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: /成长质量/ }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /成长质量/ }));
 
     const input = screen.getByPlaceholderText('输入股票代码或名称，如 600519、贵州茅台、AAPL');
     fireEvent.change(input, { target: { value: '600519' } });
@@ -3364,8 +3364,8 @@ describe('HomePage', () => {
     );
 
     fireEvent.click(await screen.findByRole('button', { name: '默认策略' }));
-    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: /默认多头趋势/ }));
-    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: /成长质量/ }));
+    writeFullDimensionSkillIds(['bull_trend', 'growth_quality']);
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /全维度综合/ }));
 
     const input = screen.getByPlaceholderText('输入股票代码或名称，如 600519、贵州茅台、AAPL');
     fireEvent.change(input, { target: { value: '600519' } });
@@ -3377,9 +3377,7 @@ describe('HomePage', () => {
         skills: ['bull_trend', 'growth_quality'],
       }));
     });
-    expect(window.localStorage.getItem(HOME_SELECTED_SKILLS_STORAGE_KEY)).toBe(
-      JSON.stringify(['bull_trend', 'growth_quality']),
-    );
+    expect(readStrategyMode()).toBe(FULL_DIMENSION_MODE);
   });
 
   it('restores the saved strategy selection and clears it back to default', async () => {
@@ -3398,17 +3396,15 @@ describe('HomePage', () => {
       limit: 20,
       items: [],
     });
-    window.localStorage.setItem(
-      HOME_SELECTED_SKILLS_STORAGE_KEY,
-      JSON.stringify(['bull_trend', 'growth_quality']),
-    );
+    writeFullDimensionSkillIds(['bull_trend', 'growth_quality']);
+    writeStrategyMode(FULL_DIMENSION_MODE);
 
     const firstView = render(
       <MemoryRouter>
         <HomePage />
       </MemoryRouter>,
     );
-    expect(await screen.findByRole('button', { name: '已选 2 项' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '全维度综合' })).toBeInTheDocument();
     firstView.unmount();
 
     render(
@@ -3416,11 +3412,11 @@ describe('HomePage', () => {
         <HomePage />
       </MemoryRouter>,
     );
-    const trigger = await screen.findByRole('button', { name: '已选 2 项' });
+    const trigger = await screen.findByRole('button', { name: '全维度综合' });
     fireEvent.click(trigger);
     fireEvent.click(screen.getByRole('menuitemradio', { name: /默认策略/ }));
 
-    expect(window.localStorage.getItem(HOME_SELECTED_SKILLS_STORAGE_KEY)).toBeNull();
+    expect(readStrategyMode()).toBe('');
     expect(await screen.findByRole('button', { name: '默认策略' })).toBeInTheDocument();
   });
 
@@ -3456,10 +3452,10 @@ describe('HomePage', () => {
 
     const menu = screen.getByRole('menu');
     fireEvent.keyDown(menu, { key: 'ArrowDown' });
-    expect(screen.getByRole('menuitemcheckbox', { name: /默认多头趋势/ })).toHaveFocus();
+    expect(screen.getByRole('menuitemradio', { name: /默认多头趋势/ })).toHaveFocus();
 
     fireEvent.keyDown(menu, { key: 'End' });
-    expect(screen.getByRole('menuitem', { name: /按上限选择/ })).toHaveFocus();
+    expect(screen.getByRole('menuitemradio', { name: /成长质量/ })).toHaveFocus();
 
     fireEvent.keyDown(menu, { key: 'Escape' });
     await waitFor(() => {

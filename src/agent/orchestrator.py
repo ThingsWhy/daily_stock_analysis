@@ -224,12 +224,12 @@ class AgentOrchestrator:
         return max(1, min(4, parsed))
 
     def _get_skill_max_agents(self) -> int:
-        raw_value = getattr(self.config, "agent_skill_max_agents", 4)
+        raw_value = getattr(self.config, "agent_skill_max_agents", 64)
         try:
-            parsed = int(raw_value or 4)
+            parsed = int(raw_value or 64)
         except (TypeError, ValueError):
-            parsed = 4
-        return max(1, min(8, parsed))
+            parsed = 64
+        return max(1, min(64, parsed))
 
     def _build_timeout_result(
         self,

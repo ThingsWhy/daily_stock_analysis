@@ -172,12 +172,12 @@ class ConfigEnvCompatibilityTestCase(unittest.TestCase):
 
     @patch("src.config.setup_env")
     @patch.object(Config, "_parse_litellm_yaml", return_value=[])
-    def test_agent_skill_max_agents_defaults_to_four_and_allows_eight(
+    def test_agent_skill_max_agents_defaults_to_available_capacity(
         self, _mock_parse_litellm_yaml, _mock_setup_env
     ):
         with patch.dict(os.environ, {"STOCK_LIST": "600519"}, clear=True):
             default_config = Config._load_from_env()
-        self.assertEqual(default_config.agent_skill_max_agents, 4)
+        self.assertEqual(default_config.agent_skill_max_agents, 64)
 
         with patch.dict(
             os.environ,
@@ -193,10 +193,10 @@ class ConfigEnvCompatibilityTestCase(unittest.TestCase):
             clear=True,
         ):
             clamped_config = Config._load_from_env()
-        self.assertEqual(clamped_config.agent_skill_max_agents, 8)
+        self.assertEqual(clamped_config.agent_skill_max_agents, 64)
 
     def test_agent_skill_max_agents_clamps_direct_config_values(self):
-        self.assertEqual(Config(agent_skill_max_agents=99).agent_skill_max_agents, 8)
+        self.assertEqual(Config(agent_skill_max_agents=99).agent_skill_max_agents, 64)
         self.assertEqual(Config(agent_skill_max_agents=0).agent_skill_max_agents, 1)
 
     @patch("src.config.setup_env")

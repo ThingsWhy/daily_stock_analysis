@@ -46,7 +46,7 @@ class SkillRouter:
             if len(selected) > max_count:
                 raise SkillSelectionLimitError(
                     f"Requested {len(selected)} specialist skills exceeds AGENT_SKILL_MAX_AGENTS={max_count}; "
-                    "reduce the selection or raise AGENT_SKILL_MAX_AGENTS (maximum 8)."
+                    "reduce the selection or raise AGENT_SKILL_MAX_AGENTS (maximum 64)."
                 )
             logger.info("[SkillRouter] user-requested skills: %s", selected)
             return selected

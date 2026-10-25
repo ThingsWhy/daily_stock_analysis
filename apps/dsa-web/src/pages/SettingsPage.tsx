@@ -7,6 +7,8 @@ import { useAuth, useDesktopUpdate, useSystemConfig } from '../hooks';
 import { useUiLanguage } from '../contexts/UiLanguageContext';
 import { createParsedApiError, getParsedApiError, type ParsedApiError } from '../api/error';
 import { analysisApi } from '../api/analysis';
+import { agentApi, type SkillInfo } from '../api/agent';
+import { readFullDimensionSkillIds, writeFullDimensionSkillIds } from '../utils/strategyPreferences';
 import { screeningApi, notifyScreeningConfigChanged, notifySystemConfigChanged } from '../api/screening';
 import { systemConfigApi } from '../api/systemConfig';
 import { ApiErrorAlert, Button, ConfirmDialog, EmptyState } from '../components/common';
@@ -710,6 +712,9 @@ const SettingsPage: React.FC = () => {
   const [llmChannelHasDirty, setLlmChannelHasDirty] = useState(false);
   const [llmChannelIsSaving, setLlmChannelIsSaving] = useState(false);
   const [llmChannelDraftItems, setLlmChannelDraftItems] = useState<SystemConfigUpdateItem[]>([]);
+  const [fullSkills, setFullSkills] = useState<SkillInfo[]>([]);
+  const [checkedFullSkillIds, setCheckedFullSkillIds] = useState<string[]>(() => readFullDimensionSkillIds() ?? []);
+  const [fullSkillsLoadError, setFullSkillsLoadError] = useState(false);
   const envBackupImportRef = useRef<HTMLInputElement | null>(null);
   const setupStatusRequestIdRef = useRef(0);
   const {
@@ -813,6 +818,33 @@ const SettingsPage: React.FC = () => {
   useEffect(() => {
     void load();
   }, [load]);
+  useEffect(() => {
+    if (activeCategory !== 'agent') return undefined;
+    let active = true;
+    setFullSkillsLoadError(false);
+    agentApi.getSkills().then((response) => {
+      if (!active) return;
+      const available = response.skills || [];
+      const ids = available.map((skill) => skill.id);
+      const previous = readFullDimensionSkillIds();
+      const valid = (previous ?? ids).filter((id) => ids.includes(id));
+      const selection = valid.length >= 2 ? valid : ids;
+      setFullSkills(available);
+      setCheckedFullSkillIds(selection);
+      writeFullDimensionSkillIds(selection);
+    }).catch(() => {
+      if (active) setFullSkillsLoadError(true);
+    });
+    return () => { active = false; };
+  }, [activeCategory]);
+
+  const toggleFullSkill = (id: string, enabled: boolean) => {
+    const next = enabled ? [...checkedFullSkillIds, id] : checkedFullSkillIds.filter((value) => value !== id);
+    if (next.length < 2) return;
+    setCheckedFullSkillIds(next);
+    writeFullDimensionSkillIds(next);
+  };
+
 
   useEffect(() => {
     const requestedCategory = new URLSearchParams(location.search).get('category');
@@ -1681,6 +1713,39 @@ const SettingsPage: React.FC = () => {
                   />
                 </SettingsSectionCard>
               </SettingsPanelErrorBoundary>
+            ) : null}
+            {activeCategory === 'agent' ? (
+              <SettingsSectionCard
+                title={t('settings.fullDimensionStrategyTitle')}
+                description={t('settings.fullDimensionStrategyDescription')}
+              >
+                {fullSkillsLoadError ? (
+                  <p role="alert">{t('settings.fullDimensionStrategyLoadFailed')}</p>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm text-secondary-text">
+                      {t('settings.fullDimensionStrategyCount', { count: checkedFullSkillIds.length })}
+                    </p>
+                    <button type="button" className="rounded-lg border border-subtle px-3 py-2 text-xs" onClick={() => {
+                      const ids = fullSkills.map((skill) => skill.id);
+                      setCheckedFullSkillIds(ids);
+                      writeFullDimensionSkillIds(ids);
+                    }}>{t('settings.fullDimensionStrategySelectAll')}</button>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {fullSkills.map((skill) => (
+                        <label key={skill.id} className="flex items-start gap-3 rounded-lg border border-subtle p-3">
+                          <input type="checkbox" checked={checkedFullSkillIds.includes(skill.id)}
+                            disabled={checkedFullSkillIds.includes(skill.id) && checkedFullSkillIds.length <= 2}
+                            onChange={(event) => toggleFullSkill(skill.id, event.target.checked)} />
+                          <span><span className="block text-sm font-medium">{skill.name}</span>
+                          <span className="block text-xs text-muted-text">{skill.description}</span></span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-text">{t('settings.fullDimensionStrategySavedLocally')}</p>
+                  </div>
+                )}
+              </SettingsSectionCard>
             ) : null}
             {shouldGuardActiveConfigPanel && hasActiveConfigItems ? (
               <SettingsPanelErrorBoundary

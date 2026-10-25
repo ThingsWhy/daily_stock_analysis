@@ -160,13 +160,13 @@ class SkillInfo(BaseModel):
 class SkillsResponse(BaseModel):
     skills: List[SkillInfo]
     default_skill_id: str = ""
-    max_agents: int = Field(default=4, ge=1, le=8)
+    max_agents: int = Field(default=64, ge=1, le=64)
 
 
 class StrategiesResponse(BaseModel):
     strategies: List[SkillInfo]
     default_strategy_id: str = ""
-    max_agents: int = Field(default=4, ge=1, le=8)
+    max_agents: int = Field(default=64, ge=1, le=64)
 
 
 class AgentModelDeployment(BaseModel):
@@ -241,9 +241,9 @@ def _build_skills_response(config) -> SkillsResponse:
         for skill in available_skills
     ]
     try:
-        max_agents = max(1, min(8, int(getattr(config, "agent_skill_max_agents", 4) or 4)))
+        max_agents = max(1, min(64, int(getattr(config, "agent_skill_max_agents", 64) or 64)))
     except (TypeError, ValueError):
-        max_agents = 4
+        max_agents = 64
     return SkillsResponse(
         skills=skills,
         default_skill_id=get_primary_default_skill_id(available_skills),

@@ -4008,9 +4008,9 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
             skill.strip() for skill in skill_ids if isinstance(skill, str) and skill.strip()
         ))
         try:
-            max_agents = max(1, min(8, int(getattr(config, "agent_skill_max_agents", 4) or 4)))
+            max_agents = max(1, min(64, int(getattr(config, "agent_skill_max_agents", 64) or 64)))
         except (TypeError, ValueError):
-            max_agents = 4
+            max_agents = 64
 
         def emit(progress: int, message: str) -> None:
             if progress_callback is None:
@@ -4048,14 +4048,14 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
         if len(selected) > max_agents:
             message = (
                 f"Requested {len(selected)} strategies exceeds AGENT_SKILL_MAX_AGENTS={max_agents}; "
-                "reduce the selection or raise AGENT_SKILL_MAX_AGENTS (maximum 8)."
+                "reduce the selection or raise AGENT_SKILL_MAX_AGENTS (maximum 64)."
             )
             result = failed_result(selected[0] if selected else "unknown", message)
             result.analysis_summary = _localized_text(
                 language,
                 en=message,
-                zh=f"选择了 {len(selected)} 项策略，超过当前上限 {max_agents}。请减少选择，或将 AGENT_SKILL_MAX_AGENTS 调整至更大的值（最大 8）。",
-                ko=f"선택한 전략 {len(selected)}개가 현재 한도 {max_agents}개를 초과했습니다. 선택을 줄이거나 AGENT_SKILL_MAX_AGENTS를 최대 8로 높이세요.",
+                zh=f"选择了 {len(selected)} 项策略，超过当前上限 {max_agents}。请减少选择，或将 AGENT_SKILL_MAX_AGENTS 调整至更大的值（最大 64）。",
+                ko=f"선택한 전략 {len(selected)}개가 현재 한도 {max_agents}개를 초과했습니다. 선택을 줄이거나 AGENT_SKILL_MAX_AGENTS를 최대 64로 높이세요.",
             )
             result.dashboard = {"multi_strategy_analysis": {
                 "requested_count": len(selected), "completed_count": 0, "failed_count": len(selected),
