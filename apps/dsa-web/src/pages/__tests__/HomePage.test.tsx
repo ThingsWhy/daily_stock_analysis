@@ -3452,7 +3452,7 @@ describe('HomePage', () => {
 
     const menu = screen.getByRole('menu');
     fireEvent.keyDown(menu, { key: 'ArrowDown' });
-    expect(screen.getByRole('menuitemradio', { name: /默认多头趋势/ })).toHaveFocus();
+    expect(screen.getByRole('menuitemradio', { name: /全维度综合/ })).toHaveFocus();
 
     fireEvent.keyDown(menu, { key: 'End' });
     expect(screen.getByRole('menuitemradio', { name: /成长质量/ })).toHaveFocus();

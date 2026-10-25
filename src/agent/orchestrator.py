@@ -944,7 +944,9 @@ class AgentOrchestrator:
                 technical_skill_policy=self.technical_skill_policy,
             )
             router = SkillRouter()
-            selected = router.select_skills(ctx, max_count=self._get_skill_max_agents())
+            explicit_selection = ctx.meta.get('skills_requested') or ctx.meta.get('strategies_requested')
+            max_agents = self._get_skill_max_agents() if explicit_selection else 4
+            selected = router.select_skills(ctx, max_count=max_agents)
             if not selected:
                 return []
 
