@@ -215,9 +215,10 @@ describe('BacktestPage', () => {
     expect(screen.getByText('Evaluation window')).toBeInTheDocument();
     expect(screen.getAllByText('Phase').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Run backtest' })).toBeInTheDocument();
-    expect(screen.getByText('Window return')).toBeInTheDocument();
+    // The results table and performance summary appear after separate API requests.
+    expect(await screen.findByText('Window return')).toBeInTheDocument();
     expect(screen.getByText('Direction match')).toBeInTheDocument();
-    expect(screen.getByText('Direction accuracy')).toBeInTheDocument();
+    expect(await screen.findByText('Direction accuracy')).toBeInTheDocument();
     expect(screen.queryByText('运行回测')).not.toBeInTheDocument();
     expect(screen.queryByText('窗口收益')).not.toBeInTheDocument();
   });

@@ -8,6 +8,7 @@ import { useDesktopUpdate } from '../../hooks/useDesktopUpdate';
 import { cn } from '../../utils/cn';
 import { Button } from '../common/Button';
 import { StatusDot } from '../common/StatusDot';
+import { Tooltip } from '../common/Tooltip';
 
 export const DesktopUpdateIndicator: React.FC = () => {
   const { t } = useUiLanguage();
@@ -69,7 +70,8 @@ export const DesktopUpdateIndicator: React.FC = () => {
 
   return (
     <div className="relative" ref={containerRef}>
-      <button
+      <Tooltip content={tooltip} side="bottom">
+        <button
         type="button"
         className={cn(
           'relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border/70 bg-card/85 text-secondary-text shadow-soft-card backdrop-blur-md transition-colors hover:bg-hover hover:text-foreground',
@@ -95,7 +97,8 @@ export const DesktopUpdateIndicator: React.FC = () => {
             aria-label={notice?.title || t('layout.desktopUpdateEntry')}
           />
         ) : null}
-      </button>
+        </button>
+      </Tooltip>
 
       {open ? (
         <div
