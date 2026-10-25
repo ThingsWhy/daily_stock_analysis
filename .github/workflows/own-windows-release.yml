@@ -50,7 +50,9 @@ jobs:
           try {
             npm ci
             if ($LASTEXITCODE -ne 0) { throw 'Frontend npm ci failed' }
-            npm test
+            # Limit test-file parallelism on the shared Windows runner to avoid
+            # flaky UI expectations under scheduler/CPU contention.
+            npm test -- --no-file-parallelism
             if ($LASTEXITCODE -ne 0) { throw 'Frontend tests failed' }
             npm run lint
             if ($LASTEXITCODE -ne 0) { throw 'Frontend lint failed' }

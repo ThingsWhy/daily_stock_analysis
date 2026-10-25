@@ -1283,10 +1283,11 @@ describe('StockScreeningPage', () => {
     render(<StockScreeningPage />);
 
     await waitFor(() => expect(getScreenTask).toHaveBeenCalledTimes(1));
-    expect(screen.getByText(/选股任务不可恢复/)).toBeInTheDocument();
+    // The request may have started before its rejected promise updates the view.
+    expect(await screen.findByText(/选股任务不可恢复/)).toBeInTheDocument();
     expect(screen.queryByText('选股运行中')).not.toBeInTheDocument();
     // 不可恢复分支必须清理持久化恢复状态，避免刷新后反复恢复同一条失效任务
-    expect(window.sessionStorage.getItem('dsa.screening.activeScreenTask.v1')).toBeNull();
+    await waitFor(() => expect(window.sessionStorage.getItem('dsa.screening.activeScreenTask.v1')).toBeNull());
   });
 
   it('keeps the persisted recovery state and history visible after filters change', async () => {
