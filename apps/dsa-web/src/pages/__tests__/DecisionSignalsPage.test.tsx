@@ -761,6 +761,10 @@ describe('DecisionSignalsPage', () => {
       triggerSource: 'api',
       action: 'buy',
       status: 'active',
+      // The default timeline spans only 90 days. Keep this fixture in-range
+      // so the refresh contract is tested independently of today's date.
+      createdAt: new Date(Date.now() - 60_000).toISOString(),
+      updatedAt: new Date(Date.now() - 30_000).toISOString(),
       metadata: {
         decision_profile: 'balanced',
         profile_source: 'user_selected',

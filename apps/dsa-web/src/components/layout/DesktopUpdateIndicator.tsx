@@ -78,7 +78,7 @@ export const DesktopUpdateIndicator: React.FC = () => {
         aria-label={t('layout.desktopUpdateEntry')}
         aria-expanded={open}
         aria-haspopup="dialog"
-        title={tooltip}
+        aria-description={tooltip}
         onClick={() => setOpen((current) => !current)}
       >
         {busy ? (

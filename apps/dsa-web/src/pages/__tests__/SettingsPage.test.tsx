@@ -2163,7 +2163,8 @@ describe('SettingsPage', () => {
     expect(saveButton).toBeDisabled();
 
     const enabledCheckbox = await screen.findByTestId('scheduler-enabled-checkbox');
-    expect(enabledCheckbox).toBeChecked();
+    // The runtime scheduler status is fetched asynchronously after mount.
+    await waitFor(() => expect(enabledCheckbox).toBeChecked());
     fireEvent.click(enabledCheckbox);
 
     await waitFor(() => expect(enabledCheckbox).not.toBeChecked());
