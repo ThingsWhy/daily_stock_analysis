@@ -1063,7 +1063,10 @@ describe('ChatPage', () => {
         <ChatPage />
       </MemoryRouter>
     );
-    fireEvent.click(await screen.findByRole('button', { name: '用缠论分析茅台' }));
+    const shortcut = await screen.findByRole('button', { name: '用缠论分析茅台' });
+    // The shortcut is rendered before the asynchronous agent availability check resolves.
+    await waitFor(() => expect(shortcut).toBeEnabled());
+    fireEvent.click(shortcut);
 
     await waitFor(() => {
       expect(mockStartStream).toHaveBeenCalledWith(
