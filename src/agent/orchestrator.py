@@ -223,6 +223,14 @@ class AgentOrchestrator:
             parsed = 3
         return max(1, min(4, parsed))
 
+    def _get_skill_max_agents(self) -> int:
+        raw_value = getattr(self.config, "agent_skill_max_agents", 4)
+        try:
+            parsed = int(raw_value or 4)
+        except (TypeError, ValueError):
+            parsed = 4
+        return max(1, min(8, parsed))
+
     def _build_timeout_result(
         self,
         stats: AgentRunStats,
@@ -689,7 +697,21 @@ class AgentOrchestrator:
                 and agent.agent_name == "decision"
                 and not specialist_agents_inserted
             ):
-                specialist_agents = self._build_specialist_agents(ctx)
+                from src.agent.skills.router import SkillSelectionLimitError
+                try:
+                    specialist_agents = self._build_specialist_agents(ctx)
+                except SkillSelectionLimitError as exc:
+                    logger.warning("[Orchestrator] invalid specialist selection: %s", exc)
+                    return OrchestratorResult(
+                        success=False,
+                        error=str(exc),
+                        stats=stats,
+                        total_steps=stats.total_stages,
+                        total_tokens=stats.total_tokens,
+                        tool_calls_log=all_tool_calls,
+                        stage_trajectories=stage_trajectories,
+                        runtime_facts=build_agent_runtime_facts(ctx),
+                    )
                 self._skill_agent_names = {a.agent_name for a in specialist_agents}
                 specialist_agents_inserted = True
                 if specialist_agents:
@@ -914,7 +936,7 @@ class AgentOrchestrator:
         lightweight agent wrappers for each.
         """
         try:
-            from src.agent.skills.router import SkillRouter
+            from src.agent.skills.router import SkillRouter, SkillSelectionLimitError
             common_kwargs = dict(
                 tool_registry=self.tool_registry,
                 llm_adapter=self.llm_adapter,
@@ -922,7 +944,7 @@ class AgentOrchestrator:
                 technical_skill_policy=self.technical_skill_policy,
             )
             router = SkillRouter()
-            selected = router.select_skills(ctx, max_count=4)
+            selected = router.select_skills(ctx, max_count=self._get_skill_max_agents())
             if not selected:
                 return []
 
@@ -935,6 +957,8 @@ class AgentOrchestrator:
                 ))
                 agents.append(agent)
             return agents
+        except SkillSelectionLimitError:
+            raise
         except Exception as exc:
             logger.warning("[Orchestrator] failed to build skill agents: %s", exc)
             return []

@@ -10,6 +10,7 @@ import { useTaskStream } from '../../hooks/useTaskStream';
 import { useStockPoolStore } from '../../stores';
 import type { RunFlowSnapshot } from '../../types/runFlow';
 import { getReportText, normalizeReportLanguage } from '../../utils/reportLanguage';
+import { HOME_SELECTED_SKILLS_STORAGE_KEY } from '../../utils/strategyPreferences';
 import { UI_LANGUAGE_STORAGE_KEY } from '../../utils/uiLanguage';
 import HomePage from '../HomePage';
 
@@ -3297,6 +3298,7 @@ describe('HomePage', () => {
   it('passes the selected strategy when submitting stock analysis', async () => {
     vi.mocked(agentApi.getSkills).mockResolvedValue({
       default_skill_id: 'bull_trend',
+      max_agents: 4,
       skills: [
         { id: 'bull_trend', name: '默认多头趋势', description: '趋势分析' },
         { id: 'growth_quality', name: '成长质量', description: '成长股分析' },
@@ -3319,8 +3321,8 @@ describe('HomePage', () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: '策略' }));
-    fireEvent.click(screen.getByRole('menuitemradio', { name: /成长质量/ }));
+    fireEvent.click(await screen.findByRole('button', { name: '默认策略' }));
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: /成长质量/ }));
 
     const input = screen.getByPlaceholderText('输入股票代码或名称，如 600519、贵州茅台、AAPL');
     fireEvent.change(input, { target: { value: '600519' } });
@@ -3334,9 +3336,98 @@ describe('HomePage', () => {
     });
   });
 
+  it('submits multiple selected strategies together', async () => {
+    vi.mocked(agentApi.getSkills).mockResolvedValue({
+      default_skill_id: 'bull_trend',
+      max_agents: 8,
+      skills: [
+        { id: 'bull_trend', name: '默认多头趋势', description: '趋势分析' },
+        { id: 'growth_quality', name: '成长质量', description: '成长股分析' },
+        { id: 'hot_theme', name: '热点题材', description: '题材分析' },
+      ],
+    });
+    vi.mocked(historyApi.getList).mockResolvedValue({
+      total: 0,
+      page: 1,
+      limit: 20,
+      items: [],
+    });
+    vi.mocked(analysisApi.analyzeAsync).mockResolvedValue({
+      taskId: 'task-multi-strategy',
+      status: 'pending',
+    });
+
+    render(
+      <MemoryRouter>
+        <HomePage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: '默认策略' }));
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: /默认多头趋势/ }));
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: /成长质量/ }));
+
+    const input = screen.getByPlaceholderText('输入股票代码或名称，如 600519、贵州茅台、AAPL');
+    fireEvent.change(input, { target: { value: '600519' } });
+    fireEvent.click(screen.getByRole('button', { name: '分析' }));
+
+    await waitFor(() => {
+      expect(analysisApi.analyzeAsync).toHaveBeenCalledWith(expect.objectContaining({
+        stockCode: '600519',
+        skills: ['bull_trend', 'growth_quality'],
+      }));
+    });
+    expect(window.localStorage.getItem(HOME_SELECTED_SKILLS_STORAGE_KEY)).toBe(
+      JSON.stringify(['bull_trend', 'growth_quality']),
+    );
+  });
+
+  it('restores the saved strategy selection and clears it back to default', async () => {
+    vi.mocked(agentApi.getSkills).mockResolvedValue({
+      default_skill_id: 'bull_trend',
+      max_agents: 8,
+      skills: [
+        { id: 'bull_trend', name: '默认多头趋势', description: '趋势分析' },
+        { id: 'growth_quality', name: '成长质量', description: '成长股分析' },
+        { id: 'hot_theme', name: '热点题材', description: '题材分析' },
+      ],
+    });
+    vi.mocked(historyApi.getList).mockResolvedValue({
+      total: 0,
+      page: 1,
+      limit: 20,
+      items: [],
+    });
+    window.localStorage.setItem(
+      HOME_SELECTED_SKILLS_STORAGE_KEY,
+      JSON.stringify(['bull_trend', 'growth_quality']),
+    );
+
+    const firstView = render(
+      <MemoryRouter>
+        <HomePage />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole('button', { name: '已选 2 项' })).toBeInTheDocument();
+    firstView.unmount();
+
+    render(
+      <MemoryRouter>
+        <HomePage />
+      </MemoryRouter>,
+    );
+    const trigger = await screen.findByRole('button', { name: '已选 2 项' });
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /默认策略/ }));
+
+    expect(window.localStorage.getItem(HOME_SELECTED_SKILLS_STORAGE_KEY)).toBeNull();
+    expect(await screen.findByRole('button', { name: '默认策略' })).toBeInTheDocument();
+  });
+
   it('supports keyboard navigation in the strategy menu', async () => {
     vi.mocked(agentApi.getSkills).mockResolvedValue({
       default_skill_id: 'bull_trend',
+      max_agents: 4,
       skills: [
         { id: 'bull_trend', name: '默认多头趋势', description: '趋势分析' },
         { id: 'growth_quality', name: '成长质量', description: '成长股分析' },
@@ -3355,7 +3446,7 @@ describe('HomePage', () => {
       </MemoryRouter>,
     );
 
-    const trigger = await screen.findByRole('button', { name: '策略' });
+    const trigger = await screen.findByRole('button', { name: '默认策略' });
     fireEvent.keyDown(trigger, { key: 'ArrowDown' });
 
     const defaultOption = await screen.findByRole('menuitemradio', { name: /默认策略/ });
@@ -3365,10 +3456,10 @@ describe('HomePage', () => {
 
     const menu = screen.getByRole('menu');
     fireEvent.keyDown(menu, { key: 'ArrowDown' });
-    expect(screen.getByRole('menuitemradio', { name: /默认多头趋势/ })).toHaveFocus();
+    expect(screen.getByRole('menuitemcheckbox', { name: /默认多头趋势/ })).toHaveFocus();
 
     fireEvent.keyDown(menu, { key: 'End' });
-    expect(screen.getByRole('menuitemradio', { name: /成长质量/ })).toHaveFocus();
+    expect(screen.getByRole('menuitem', { name: /按上限选择/ })).toHaveFocus();
 
     fireEvent.keyDown(menu, { key: 'Escape' });
     await waitFor(() => {

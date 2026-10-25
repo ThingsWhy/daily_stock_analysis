@@ -1132,6 +1132,7 @@ class Config:
     agent_analysis_tool_timeout_s: float = 0.0
     agent_action_tool_timeout_s: float = 0.0
     agent_skill_concurrency: int = 3
+    agent_skill_max_agents: int = 4  # Maximum selected strategy agents; configurable up to 8
     agent_risk_override: bool = True  # Allow risk agent to veto buy signals
     agent_deep_research_budget: int = 30000  # Max token budget for deep research
     agent_deep_research_timeout: int = 180  # Max seconds for /research command before returning timeout
@@ -1465,6 +1466,18 @@ class Config:
                 self.agent_skill_routing, self._VALID_SKILL_ROUTING,
             )
             object.__setattr__(self, "agent_skill_routing", "auto")
+        try:
+            max_skill_agents = int(self.agent_skill_max_agents)
+        except (TypeError, ValueError):
+            max_skill_agents = 4
+        normalized_max_skill_agents = max(1, min(8, max_skill_agents))
+        if normalized_max_skill_agents != self.agent_skill_max_agents:
+            _log.warning(
+                "AGENT_SKILL_MAX_AGENTS=%r is outside 1-8; using %d",
+                self.agent_skill_max_agents,
+                normalized_max_skill_agents,
+            )
+            object.__setattr__(self, "agent_skill_max_agents", normalized_max_skill_agents)
         normalized_profile = normalize_agent_context_compression_profile(
             self.agent_context_compression_profile
         )
@@ -2103,6 +2116,13 @@ class Config:
                 field_name='AGENT_SKILL_CONCURRENCY',
                 minimum=1,
                 maximum=4,
+            ),
+            agent_skill_max_agents=parse_env_int(
+                os.getenv('AGENT_SKILL_MAX_AGENTS'),
+                4,
+                field_name='AGENT_SKILL_MAX_AGENTS',
+                minimum=1,
+                maximum=8,
             ),
             agent_risk_override=os.getenv('AGENT_RISK_OVERRIDE', 'true').lower() == 'true',
             agent_deep_research_budget=parse_env_int(

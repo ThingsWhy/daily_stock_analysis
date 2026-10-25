@@ -22,6 +22,10 @@ from src.agent.skills.defaults import (
 logger = logging.getLogger(__name__)
 
 
+class SkillSelectionLimitError(ValueError):
+    """Raised when an explicit skill selection exceeds its configured limit."""
+
+
 class SkillRouter:
     """Select applicable skills for a given analysis context."""
 
@@ -32,8 +36,20 @@ class SkillRouter:
     ) -> List[str]:
         requested_skills = ctx.meta.get("skills_requested") or ctx.meta.get("strategies_requested", [])
         if requested_skills:
-            logger.info("[SkillRouter] user-requested skills: %s", requested_skills)
-            return requested_skills[:max_count]
+            if isinstance(requested_skills, str):
+                requested_skills = [requested_skills]
+            selected = list(dict.fromkeys(
+                str(skill_id).strip()
+                for skill_id in requested_skills
+                if isinstance(skill_id, str) and skill_id.strip()
+            ))
+            if len(selected) > max_count:
+                raise SkillSelectionLimitError(
+                    f"Requested {len(selected)} specialist skills exceeds AGENT_SKILL_MAX_AGENTS={max_count}; "
+                    "reduce the selection or raise AGENT_SKILL_MAX_AGENTS (maximum 8)."
+                )
+            logger.info("[SkillRouter] user-requested skills: %s", selected)
+            return selected
 
         routing_mode = self._get_routing_mode()
         if routing_mode == "manual":
@@ -148,9 +164,11 @@ class SkillRouter:
         available_skills = cls._get_available_skills()
         skill_catalog = available_skills or None
         available = {skill.name for skill in available_skills}
-        selected = [skill_id for skill_id in configured if skill_id in available][:max_count]
+        # Manual defaults are implicit configuration: preserve their historic
+        # capped selection. Only an explicit per-request choice fails on overflow.
+        selected = list(dict.fromkeys(skill_id for skill_id in configured if skill_id in available))
         if selected:
-            return selected
+            return selected[:max_count]
 
         return get_default_router_skill_ids(
             skill_catalog,

@@ -42,6 +42,35 @@ jobs:
             apps/dsa-web/package-lock.json
             apps/dsa-desktop/package-lock.json
 
+      - name: Run frontend checks before packaging
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Push-Location apps/dsa-web
+          try {
+            npm ci
+            if ($LASTEXITCODE -ne 0) { throw 'Frontend npm ci failed' }
+            npm test
+            if ($LASTEXITCODE -ne 0) { throw 'Frontend tests failed' }
+            npm run lint
+            if ($LASTEXITCODE -ne 0) { throw 'Frontend lint failed' }
+            npm run build
+            if ($LASTEXITCODE -ne 0) { throw 'Frontend TypeScript/build check failed' }
+          } finally {
+            Pop-Location
+          }
+
+      - name: Run backend strategy checks before packaging
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m pip install -r requirements.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Python requirements installation failed' }
+          python -m pip install pytest
+          if ($LASTEXITCODE -ne 0) { throw 'pytest installation failed' }
+          python -m pytest -q tests/test_analyzer_multi_strategy.py tests/test_multi_strategy_api.py tests/test_config_env_compat.py tests/test_multi_agent.py
+          if ($LASTEXITCODE -ne 0) { throw 'Backend strategy tests failed' }
+
       - name: Set custom build version and update provider
         shell: pwsh
         run: |

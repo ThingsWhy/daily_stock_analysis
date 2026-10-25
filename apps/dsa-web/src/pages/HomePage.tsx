@@ -39,6 +39,7 @@ import type {
 } from '../types/analysis';
 import type { RunFlowSnapshotSource } from '../types/runFlow';
 import { getTodayInShanghai } from '../utils/format';
+import { MAX_HOME_ANALYSIS_SKILLS, readHomeSelectedSkillIds, writeHomeSelectedSkillIds } from '../utils/strategyPreferences';
 import { useStockIndex } from '../hooks/useStockIndex';
 import { resolveRegisteredIndexCanonical, toAssetAwareCodeKey, type AssetAwareAssetType } from '../utils/stockCode';
 
@@ -295,7 +296,9 @@ const HomePage: React.FC = () => {
   const [marketReviewPayload, setMarketReviewPayload] = useState<MarketReviewPayload | null>(null);
   const [marketReviewRegionOverride, setMarketReviewRegionOverride] = useState<MarketReviewRegion[] | undefined>();
   const [analysisSkills, setAnalysisSkills] = useState<SkillInfo[]>([]);
-  const [selectedStrategyId, setSelectedStrategyId] = useState('');
+  const [selectedStrategyIds, setSelectedStrategyIds] = useState<string[]>(() => readHomeSelectedSkillIds());
+  const [maxSelectableSkills, setMaxSelectableSkills] = useState(4);
+  const [strategySelectionNotice, setStrategySelectionNotice] = useState<'limit' | 'trimmed' | null>(null);
   const [strategyMenuOpen, setStrategyMenuOpen] = useState(false);
   const [runFlowDrawer, setRunFlowDrawer] = useState<RunFlowDrawerState>({ open: false });
   const [duplicateBannerVisible, setDuplicateBannerVisible] = useState(false);
@@ -474,8 +477,22 @@ const HomePage: React.FC = () => {
     let active = true;
     agentApi.getSkills()
       .then((response) => {
-        if (active) {
-          setAnalysisSkills(response.skills);
+        if (!active) return;
+        const availableSkills = response.skills || [];
+        const configuredMax = Number(response.max_agents);
+        const maxSkills = Number.isFinite(configuredMax) && configuredMax > 0
+          ? Math.min(MAX_HOME_ANALYSIS_SKILLS, Math.floor(configuredMax))
+          : 4;
+        setAnalysisSkills(availableSkills);
+        setMaxSelectableSkills(maxSkills);
+        if (availableSkills.length > 0) {
+          const availableIds = new Set(availableSkills.map((skill) => skill.id));
+          const savedIds = readHomeSelectedSkillIds();
+          const validIds = savedIds.filter((id) => availableIds.has(id));
+          const nextIds = validIds.slice(0, maxSkills);
+          setSelectedStrategyIds(nextIds);
+          writeHomeSelectedSkillIds(nextIds);
+          setStrategySelectionNotice(nextIds.length < validIds.length ? 'trimmed' : null);
         }
       })
       .catch(() => {
@@ -507,10 +524,14 @@ const HomePage: React.FC = () => {
   }, [strategyMenuOpen]);
 
   useEffect(() => {
-    if (selectedStrategyId && !analysisSkills.some((skill) => skill.id === selectedStrategyId)) {
-      setSelectedStrategyId('');
+    if (selectedStrategyIds.length === 0 || analysisSkills.length === 0) return;
+    const availableIds = new Set(analysisSkills.map((skill) => skill.id));
+    const validIds = selectedStrategyIds.filter((id) => availableIds.has(id)).slice(0, maxSelectableSkills);
+    if (validIds.length !== selectedStrategyIds.length || validIds.some((id, index) => id !== selectedStrategyIds[index])) {
+      setSelectedStrategyIds(validIds);
+      writeHomeSelectedSkillIds(validIds);
     }
-  }, [analysisSkills, selectedStrategyId]);
+  }, [analysisSkills, maxSelectableSkills, selectedStrategyIds]);
 
   const reportLanguage = normalizeReportLanguage(selectedReport?.meta.reportLanguage);
   const liveMarketReviewLanguage = normalizeReportLanguage(marketReviewPayload?.language);
@@ -524,14 +545,17 @@ const HomePage: React.FC = () => {
     closeHistoryTrend();
   }, [closeHistoryTrend, isHistoryTrendOpen, isHistoryTrendUnavailable]);
 
-  const selectedStrategy = useMemo(
-    () => analysisSkills.find((skill) => skill.id === selectedStrategyId),
-    [analysisSkills, selectedStrategyId],
-  );
   const selectedAnalysisSkills = useMemo(
-    () => (selectedStrategyId ? [selectedStrategyId] : undefined),
-    [selectedStrategyId],
+    () => (selectedStrategyIds.length > 0 ? selectedStrategyIds : undefined),
+    [selectedStrategyIds],
   );
+  const selectedStrategyLabel = useMemo(() => {
+    if (selectedStrategyIds.length === 0) return t('home.defaultStrategyName');
+    if (selectedStrategyIds.length === 1) {
+      return analysisSkills.find((skill) => skill.id === selectedStrategyIds[0])?.name || t('home.strategy');
+    }
+    return t('home.selectedStrategyCount', { count: selectedStrategyIds.length });
+  }, [analysisSkills, selectedStrategyIds, t]);
   const strategyOptions = useMemo(
     () => [
       { id: '', name: t('home.defaultStrategyName'), description: t('home.defaultStrategyDescription') },
@@ -540,6 +564,11 @@ const HomePage: React.FC = () => {
         name: skill.name,
         description: skill.description,
       })),
+      {
+        id: '__select_maximum__',
+        name: t('home.selectMaximumStrategies'),
+        description: t('home.selectMaximumStrategiesDescription'),
+      },
     ],
     [analysisSkills, t],
   );
@@ -550,9 +579,33 @@ const HomePage: React.FC = () => {
     }
   }, []);
   const selectStrategy = useCallback((strategyId: string) => {
-    setSelectedStrategyId(strategyId);
-    setStrategyMenuOpen(false);
-  }, []);
+    if (strategyId === '__select_maximum__') {
+      const nextIds = analysisSkills.slice(0, maxSelectableSkills).map((skill) => skill.id);
+      setSelectedStrategyIds(nextIds);
+      writeHomeSelectedSkillIds(nextIds);
+      setStrategySelectionNotice(null);
+      return;
+    }
+    if (!strategyId) {
+      setSelectedStrategyIds([]);
+      writeHomeSelectedSkillIds([]);
+      setStrategySelectionNotice(null);
+      setStrategyMenuOpen(false);
+      return;
+    }
+
+    const isSelected = selectedStrategyIds.includes(strategyId);
+    if (!isSelected && selectedStrategyIds.length >= maxSelectableSkills) {
+      setStrategySelectionNotice('limit');
+      return;
+    }
+    const nextIds = isSelected
+      ? selectedStrategyIds.filter((id) => id !== strategyId)
+      : [...selectedStrategyIds, strategyId];
+    setSelectedStrategyIds(nextIds);
+    writeHomeSelectedSkillIds(nextIds);
+    setStrategySelectionNotice(null);
+  }, [analysisSkills, maxSelectableSkills, selectedStrategyIds]);
   const focusStrategyItem = useCallback((index: number) => {
     const itemCount = strategyOptions.length;
     if (itemCount === 0) {
@@ -562,9 +615,11 @@ const HomePage: React.FC = () => {
     strategyItemRefs.current[nextIndex]?.focus();
   }, [strategyOptions.length]);
   const getSelectedStrategyIndex = useCallback(() => {
-    const selectedIndex = strategyOptions.findIndex((option) => option.id === selectedStrategyId);
+    const selectedIndex = strategyOptions.findIndex((option) => (
+      option.id ? selectedStrategyIds.includes(option.id) : selectedStrategyIds.length === 0
+    ));
     return selectedIndex >= 0 ? selectedIndex : 0;
-  }, [selectedStrategyId, strategyOptions]);
+  }, [selectedStrategyIds, strategyOptions]);
   useEffect(() => {
     strategyItemRefs.current = strategyItemRefs.current.slice(0, strategyOptions.length);
   }, [strategyOptions.length]);
@@ -873,17 +928,17 @@ const HomePage: React.FC = () => {
       stockCode?: string,
       stockName?: string,
       selectionSource?: 'manual' | 'autocomplete' | 'import' | 'image',
-      analysisSkills?: string[],
+      overrideSkills?: string[],
     ) => {
       void submitAnalysis({
         stockCode,
         stockName,
         originalQuery: query,
         selectionSource: selectionSource ?? 'manual',
-        skills: analysisSkills ?? selectedAnalysisSkills,
+        skills: overrideSkills ?? (analysisSkills.length > 0 ? selectedAnalysisSkills : undefined),
       });
     },
-    [query, selectedAnalysisSkills, submitAnalysis],
+    [analysisSkills, query, selectedAnalysisSkills, submitAnalysis],
   );
 
   useEffect(() => {
@@ -1559,7 +1614,7 @@ const HomePage: React.FC = () => {
                     className="home-surface-button flex h-10 max-w-[8.5rem] items-center gap-1.5 rounded-xl px-3 text-xs text-foreground disabled:cursor-not-allowed disabled:opacity-60 sm:max-w-[11rem]"
                   >
                     <SlidersHorizontal className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-                    <span className="truncate">{selectedStrategy?.name || t('home.strategy')}</span>
+                    <span className="truncate">{selectedStrategyLabel}</span>
                   </button>
                   {strategyMenuOpen ? (
                     <div
@@ -1569,8 +1624,34 @@ const HomePage: React.FC = () => {
                       onKeyDown={handleStrategyMenuKeyDown}
                       className="absolute right-0 top-11 z-[120] max-h-80 w-[min(18rem,calc(100vw-1.5rem))] overflow-y-auto rounded-xl border border-subtle bg-elevated p-1.5 text-sm text-foreground shadow-2xl"
                     >
+                      <div className="space-y-1 px-2.5 pb-2 pt-1">
+                        <p className="text-xs text-secondary-text" role="status">
+                          {t('home.strategySelectionCount', { selected: selectedStrategyIds.length, max: maxSelectableSkills })}
+                        </p>
+                        <p className="text-xs leading-5 text-muted-text">{t('home.strategySelectionHint', { count: maxSelectableSkills })}</p>
+                        {selectedStrategyIds.length >= 5 ? (
+                          <p className="text-xs leading-5 text-amber-700 dark:text-amber-300" role="note">
+                            {t('home.multiStrategyCostWarning')}
+                          </p>
+                        ) : null}
+                        {strategySelectionNotice === 'limit' ? (
+                          <p className="text-xs leading-5 text-amber-700 dark:text-amber-300" role="status">
+                            {t('home.strategyLimitReached', { count: maxSelectableSkills })}
+                          </p>
+                        ) : null}
+                        {strategySelectionNotice === 'trimmed' ? (
+                          <p className="text-xs leading-5 text-amber-700 dark:text-amber-300" role="status">
+                            {t('home.strategySavedSelectionTrimmed', { count: maxSelectableSkills })}
+                          </p>
+                        ) : null}
+                      </div>
                       {strategyOptions.map((option, index) => {
-                        const selected = selectedStrategyId === option.id;
+                        const isPresetAction = option.id === '__select_maximum__';
+                        const selected = isPresetAction
+                          ? false
+                          : option.id
+                            ? selectedStrategyIds.includes(option.id)
+                            : selectedStrategyIds.length === 0;
                         return (
                           <button
                             key={option.id || 'default'}
@@ -1578,7 +1659,7 @@ const HomePage: React.FC = () => {
                               strategyItemRefs.current[index] = node;
                             }}
                             type="button"
-                            role="menuitemradio"
+                            role={isPresetAction ? 'menuitem' : option.id ? 'menuitemcheckbox' : 'menuitemradio'}
                             aria-checked={selected}
                             tabIndex={-1}
                             onClick={() => selectStrategy(option.id)}

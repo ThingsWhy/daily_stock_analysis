@@ -172,6 +172,35 @@ class ConfigEnvCompatibilityTestCase(unittest.TestCase):
 
     @patch("src.config.setup_env")
     @patch.object(Config, "_parse_litellm_yaml", return_value=[])
+    def test_agent_skill_max_agents_defaults_to_four_and_allows_eight(
+        self, _mock_parse_litellm_yaml, _mock_setup_env
+    ):
+        with patch.dict(os.environ, {"STOCK_LIST": "600519"}, clear=True):
+            default_config = Config._load_from_env()
+        self.assertEqual(default_config.agent_skill_max_agents, 4)
+
+        with patch.dict(
+            os.environ,
+            {"STOCK_LIST": "600519", "AGENT_SKILL_MAX_AGENTS": "8"},
+            clear=True,
+        ):
+            personal_config = Config._load_from_env()
+        self.assertEqual(personal_config.agent_skill_max_agents, 8)
+
+        with patch.dict(
+            os.environ,
+            {"STOCK_LIST": "600519", "AGENT_SKILL_MAX_AGENTS": "99"},
+            clear=True,
+        ):
+            clamped_config = Config._load_from_env()
+        self.assertEqual(clamped_config.agent_skill_max_agents, 8)
+
+    def test_agent_skill_max_agents_clamps_direct_config_values(self):
+        self.assertEqual(Config(agent_skill_max_agents=99).agent_skill_max_agents, 8)
+        self.assertEqual(Config(agent_skill_max_agents=0).agent_skill_max_agents, 1)
+
+    @patch("src.config.setup_env")
+    @patch.object(Config, "_parse_litellm_yaml", return_value=[])
     def test_agent_backend_env_accepts_codex_app_server(
         self, _mock_parse_litellm_yaml, _mock_setup_env
     ):

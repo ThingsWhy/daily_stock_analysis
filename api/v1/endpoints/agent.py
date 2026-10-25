@@ -160,11 +160,13 @@ class SkillInfo(BaseModel):
 class SkillsResponse(BaseModel):
     skills: List[SkillInfo]
     default_skill_id: str = ""
+    max_agents: int = Field(default=4, ge=1, le=8)
 
 
 class StrategiesResponse(BaseModel):
     strategies: List[SkillInfo]
     default_strategy_id: str = ""
+    max_agents: int = Field(default=4, ge=1, le=8)
 
 
 class AgentModelDeployment(BaseModel):
@@ -238,9 +240,14 @@ def _build_skills_response(config) -> SkillsResponse:
         SkillInfo(id=skill.name, name=skill.display_name, description=skill.description)
         for skill in available_skills
     ]
+    try:
+        max_agents = max(1, min(8, int(getattr(config, "agent_skill_max_agents", 4) or 4)))
+    except (TypeError, ValueError):
+        max_agents = 4
     return SkillsResponse(
         skills=skills,
         default_skill_id=get_primary_default_skill_id(available_skills),
+        max_agents=max_agents,
     )
 
 
@@ -259,6 +266,7 @@ async def get_strategies():
     return StrategiesResponse(
         strategies=payload.skills,
         default_strategy_id=payload.default_skill_id,
+        max_agents=payload.max_agents,
     )
 
 @router.post("/chat", response_model=ChatResponse)

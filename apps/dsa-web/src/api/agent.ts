@@ -118,6 +118,7 @@ export interface SkillInfo {
 export interface SkillsResponse {
   skills: SkillInfo[];
   default_skill_id: string;
+  max_agents?: number;
 }
 
 export interface ChatSessionItem {
