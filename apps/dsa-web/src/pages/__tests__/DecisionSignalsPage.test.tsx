@@ -531,7 +531,8 @@ describe('DecisionSignalsPage', () => {
     expect(within(screen.getByLabelText('Source')).getByRole('option', { name: 'Market review' })).toHaveValue('market_review');
     expect(screen.getByLabelText('Source report ID')).toBeInTheDocument();
     expect(screen.getAllByText('Japan').length).toBeGreaterThan(1);
-    expect(screen.getByText('Horizon')).toBeInTheDocument();
+    // Card details are populated by a separate async list request.
+    expect(await screen.findByText('Horizon')).toBeInTheDocument();
     expect(screen.getByText('10 days')).toBeInTheDocument();
     expect(screen.getByText('Plan quality: Partial')).toBeInTheDocument();
     expect(screen.getByText('Phase: Closing auction')).toBeInTheDocument();
