@@ -3357,6 +3357,7 @@ describe('HomePage', () => {
       status: 'pending',
     });
 
+    writeFullDimensionSkillIds(['bull_trend', 'growth_quality']);
     render(
       <MemoryRouter>
         <HomePage />
@@ -3364,7 +3365,6 @@ describe('HomePage', () => {
     );
 
     fireEvent.click(await screen.findByRole('button', { name: '默认策略' }));
-    writeFullDimensionSkillIds(['bull_trend', 'growth_quality']);
     fireEvent.click(screen.getByRole('menuitemradio', { name: /全维度综合/ }));
 
     const input = screen.getByPlaceholderText('输入股票代码或名称，如 600519、贵州茅台、AAPL');

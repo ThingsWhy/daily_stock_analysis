@@ -1318,7 +1318,8 @@ const HomePage: React.FC = () => {
             stockCodes: chunk,
             reportType: 'detailed',
             notify,
-            skills: selectedAnalysisSkills,
+            // The saved full-dimension preference is for single-stock analysis only.
+            skills: selectedStrategyId === FULL_DIMENSION_MODE ? undefined : selectedAnalysisSkills,
           });
           const counts = countBatchAccepted(result);
           acceptedCount += counts.accepted;
@@ -1418,6 +1419,7 @@ const HomePage: React.FC = () => {
     pendingWatchlistCodes,
     refreshActiveTasks,
     selectedAnalysisSkills,
+    selectedStrategyId,
     t,
     watchlistTodayStatusBlocked,
     watchlistState.watchlistCodes,
